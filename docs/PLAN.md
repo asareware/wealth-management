@@ -21,7 +21,7 @@ Status: **Done**, **In progress**, **Next**, **Not started**.
 | 0 | Decisions: Bicep, SQLite in `/home`, GitHub Actions, work tenant | You | Done |
 | 1 | Production config: settings for host, port and data folder; `/healthz` check; startup command; no browser pop-up on the server | Claude (code) | Done |
 | 2 | Security code: AI can't read Plaid tokens; app double-checks the signed-in user; writes need a same-site header (CSRF); Plaid tokens encrypted at rest | Claude (code) | Done |
-| 3 | Azure Foundry option in `app/ai.py` | Claude (code) | Next |
+| 3 | **Lab:** set up Azure Foundry in the portal, deploy Claude, wire it into `app/ai.py` ([lab guide](labs/step-3-azure-foundry.md)) | You, hands-on; Claude provides code and reviews | In progress |
 | 4 | Automated tests + a CI workflow that runs them on every push and pull request | Claude (code) | Not started |
 | 5 | Bicep templates: App Service plan, web app, Key Vault, managed identity, logging, Entra ID sign-in settings | Claude writes, you review | Not started |
 | 6 | Make the GitHub repo private | You | Not started |
@@ -99,7 +99,19 @@ What you'll set later (Step 8), as App Service settings backed by Key Vault:
 
 Known limit: the sign-in check trusts App Service's headers, so App Service Authentication must stay on. The Bicep template (Step 5) turns it on and requires it. A possible later hardening is to also verify the signed ID token the app receives.
 
-### Steps 3 to 12
+### Step 3: Azure Foundry lab (In progress)
+
+You do this one hands-on: [docs/labs/step-3-azure-foundry.md](labs/step-3-azure-foundry.md).
+
+| Part | What you do | Checkpoint (tell Claude) |
+| --- | --- | --- |
+| A | Portal: resource group `rg-wealth-portal`, Foundry resource, Claude deployment, budget alert | Resource name, deployment name, region (never the key) |
+| B | Call Claude from a short Python script with `AnthropicFoundry` | The script's output |
+| C | Wire Foundry into the app: provider setting, client factory, fixed tool loop, offline tests | Push your commit; Claude reviews it |
+
+While preparing the lab, Claude found a bug in the current `app/ai.py`: the tool loop drops Claude's `thinking` blocks when it sends a turn back, which current models need returned unchanged, and its 1,500-token limit can cut answers off. Part C fixes both. The guide's code was run against a copy of the repo (19 tests pass); the real `app/ai.py` is left for you to change.
+
+### Steps 4 to 12
 
 Each step gets its own section here, with the exact commands or portal clicks, when it starts.
 
@@ -117,7 +129,7 @@ Opening the app to other people turns a personal tool into a service that holds 
 
 - [ ] Azure region for the resources (pick one close to you, for example East US 2).
 - [ ] Store uploaded PDF statements under `/home/data` (default) or move them to Azure Blob Storage later?
-- [ ] Foundry: API key in Key Vault (default), or the web app's managed identity?
+- [x] Foundry sign-in: API key in Key Vault first; keyless managed identity as a stretch goal after Step 8 (the SDK supports it through `azure_ad_token_provider`).
 
 ## Change log
 
@@ -126,3 +138,4 @@ Opening the app to other people turns a personal tool into a service that holds 
 | 2026-11-12 | Plan added to the repo |
 | 2026-11-12 | Production plan, tracker and decisions added; Step 1 (production config) done |
 | 2026-11-12 | Step 2 (security code) done: AI token block, sign-in allow-list, CSRF check, token encryption, 16 tests |
+| 2026-11-12 | Step 3 turned into a hands-on lab; lab guide added |

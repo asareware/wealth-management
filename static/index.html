@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wealth Portal</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+</head>
+<body>
+<div class="app">
+  <nav>
+    <div class="brand">Wealth Portal<small>Private · runs on this computer</small></div>
+    <button data-view="overview" class="active">Overview</button>
+    <button data-view="transactions">Transactions</button>
+    <button data-view="statements">Statements</button>
+    <button data-view="goals">Goals</button>
+    <button data-view="accounts">Accounts</button>
+    <button data-view="ask">Ask AI</button>
+    <button data-view="settings">Connect &amp; settings</button>
+    <div class="foot" id="syncInfo"></div>
+  </nav>
+  <main>
+    <div id="demoBanner" class="banner hidden">You're looking at <b>demo data</b> (all numbers are made up).
+      Connect your real accounts under <a href="#" data-goto="settings">Connect &amp; settings</a>, then remove the demo data there.</div>
+
+    <!-- OVERVIEW -->
+    <section id="view-overview">
+      <div class="row"><div><h1>Overview</h1><p class="sub" id="ovRange"></p></div><div class="spacer"></div>
+        <div class="seg" id="periodSeg">
+          <button data-p="today">Today</button><button data-p="week">This week</button>
+          <button data-p="month" class="on">This month</button><button data-p="last_month">Last month</button>
+          <button data-p="ytd">Year to date</button>
+        </div></div>
+      <div class="grid g4" id="tiles"></div>
+      <div class="grid g3" style="margin-top:16px">
+        <div class="card"><h2>Net worth</h2><div class="chart" id="nwChart"></div></div>
+        <div class="card"><h2>Goals</h2><div id="ovGoals"></div></div>
+      </div>
+      <div class="grid g2" style="margin-top:16px">
+        <div class="card"><h2>Money in vs. money out, by month</h2>
+          <div class="legend"><span><i style="background:var(--s1)"></i>Income</span><span><i style="background:var(--s2)"></i>Spending</span></div>
+          <div class="chart" id="cfChart"></div></div>
+        <div class="card"><h2>Where the money went <span class="muted small" id="catRange"></span></h2><div id="catList"></div></div>
+      </div>
+      <div class="grid g2" style="margin-top:16px">
+        <div class="card"><h2>Daily spending, last 30 days</h2><div class="chart" id="dayChart"></div></div>
+        <div class="card"><h2>Top merchants</h2><table id="merchTable"></table></div>
+      </div>
+    </section>
+
+    <!-- TRANSACTIONS -->
+    <section id="view-transactions" class="hidden">
+      <h1>Transactions</h1><p class="sub">Search every account at once. Click a category to change it.</p>
+      <div class="card">
+        <div class="row" style="margin-bottom:12px">
+          <input id="txQ" placeholder="Search merchant, description, category…" style="flex:1;min-width:220px">
+          <select id="txAcc"><option value="">All accounts</option></select>
+          <select id="txKind"><option value="">All types</option><option value="spending">Spending</option>
+            <option value="income">Income</option><option value="transfer">Transfers</option></select>
+          <select id="txCat"><option value="">All categories</option></select>
+          <input type="date" id="txStart"><input type="date" id="txEnd">
+          <a class="btn" id="txExport" href="/api/transactions.csv" style="text-decoration:none;padding:7px 11px;border:1px solid var(--border);border-radius:8px">Export CSV</a>
+        </div>
+        <div class="row small" id="txSummary" style="margin-bottom:8px"></div>
+        <table><thead><tr><th>Date</th><th>Description</th><th>Account</th><th>Category</th><th>Type</th><th class="num">Amount</th></tr></thead>
+          <tbody id="txBody"></tbody></table>
+        <div class="row" style="margin-top:10px"><button class="btn" id="txMore">Load more</button></div>
+      </div>
+    </section>
+
+    <!-- STATEMENTS -->
+    <section id="view-statements" class="hidden">
+      <h1>Statements</h1><p class="sub">Your own monthly statement across every account, plus your uploaded bank PDFs.</p>
+      <div class="card">
+        <div class="row noprint" style="margin-bottom:10px"><h2 style="margin:0">Monthly statement</h2><div class="spacer"></div>
+          <input type="month" id="stMonth"><button class="btn" onclick="window.print()">Print / save PDF</button></div>
+        <div id="stBody"></div>
+      </div>
+      <div class="card noprint" style="margin-top:16px">
+        <div class="row"><h2 style="margin:0">Bank PDF statements</h2><div class="spacer"></div>
+          <input type="text" id="upInst" placeholder="Bank (e.g. Chase)" style="width:150px">
+          <input type="month" id="upPeriod">
+          <label class="btn" style="cursor:pointer">Upload PDFs<input type="file" id="upFile" accept=".pdf" multiple hidden></label></div>
+        <div class="row" style="margin:12px 0"><input id="stQ" placeholder="Search inside statements (e.g. 'annual fee', 'interest charged')" style="flex:1"></div>
+        <div id="stSearch"></div>
+        <table><thead><tr><th>File</th><th>Bank</th><th>Period</th><th class="num">Pages</th><th></th></tr></thead><tbody id="stFiles"></tbody></table>
+      </div>
+    </section>
+
+    <!-- GOALS -->
+    <section id="view-goals" class="hidden">
+      <div class="row"><div><h1>Goals</h1><p class="sub">How far you are, and whether your current pace gets you there.</p></div>
+        <div class="spacer"></div><button class="btn primary" id="addGoalBtn">Add goal</button></div>
+      <div class="grid g2" id="goalCards"></div>
+    </section>
+
+    <!-- ACCOUNTS -->
+    <section id="view-accounts" class="hidden">
+      <h1>Accounts</h1><p class="sub" id="accSub"></p>
+      <div id="accList"></div>
+    </section>
+
+    <!-- ASK -->
+    <section id="view-ask" class="hidden">
+      <h1>Ask AI</h1><p class="sub">Questions about your money, answered from your own data.</p>
+      <div class="chat card">
+        <div class="msgs" id="msgs">
+          <div class="suggest" id="suggest">
+            <button class="btn">How much did I spend today?</button>
+            <button class="btn">How far am I from my goal?</button>
+            <button class="btn">What did I spend on food last month?</button>
+            <button class="btn">How much money came in this month, and from where?</button>
+            <button class="btn">What are my biggest recurring charges?</button>
+            <button class="btn">How does this month's spending compare with my average?</button>
+          </div>
+        </div>
+        <form id="chatForm"><input id="chatIn" placeholder="Ask anything about your accounts…" autocomplete="off">
+          <button class="btn primary">Ask</button></form>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="view-settings" class="hidden">
+      <h1>Connect &amp; settings</h1><p class="sub">Link your banks, cards and investment accounts.</p>
+      <div class="grid g2">
+        <div class="card"><h2>Connect accounts</h2>
+          <div id="plaidState" class="small" style="margin-bottom:10px"></div>
+          <div class="row"><button class="btn primary" id="linkBank">Connect bank or card</button>
+            <button class="btn" id="linkInv">Connect investment account</button>
+            <button class="btn" id="syncBtn">Sync now</button></div>
+          <p class="small muted">One login covers every account at that bank. Chase checking, Sapphire Reserve and the Amazon card all come in through a single Chase connection.</p>
+          <h2 style="margin-top:18px">Connected institutions</h2><table id="instTable"></table>
+        </div>
+        <div class="card"><h2>Can't connect an account?</h2>
+          <p class="small">Add it manually and update the balance yourself. You can also import a transactions CSV.</p>
+          <div class="row"><button class="btn" id="addManual">Add manual account</button></div>
+          <h2 style="margin-top:18px">Import transactions from CSV</h2>
+          <div class="row"><select id="csvAcc"></select><label class="small"><input type="checkbox" id="csvFlip"> my bank shows purchases as positive</label></div>
+          <div class="row" style="margin-top:8px"><label class="btn" style="cursor:pointer">Choose CSV<input type="file" id="csvFile" accept=".csv" hidden></label><span id="csvMsg" class="small"></span></div>
+          <h2 style="margin-top:18px">Category rules</h2>
+          <p class="small muted">Example: anything containing "STEVENSON" → category "Rent". Applies to past and future transactions.</p>
+          <div class="row"><input id="rulePat" placeholder="text contains…" style="width:150px"><input id="ruleCat" placeholder="category" style="width:130px">
+            <select id="ruleKind"><option value="">keep type</option><option value="spending">spending</option><option value="income">income</option><option value="transfer">transfer</option></select>
+            <button class="btn" id="ruleAdd">Add</button></div>
+          <table id="ruleTable" style="margin-top:8px"></table>
+          <h2 style="margin-top:18px">Demo data</h2>
+          <div class="row"><button class="btn" id="demoAdd">Load demo data</button><button class="btn danger" id="demoDel">Remove demo data</button></div>
+          <h2 style="margin-top:18px">AI assistant</h2><div id="aiState" class="small"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<dialog id="goalDlg"><form method="dialog" id="goalForm">
+  <h2>New goal</h2>
+  <label>Name</label><input name="name" required placeholder="e.g. Net worth $250K">
+  <label>Target amount ($)</label><input name="target_amount" type="number" step="0.01" required>
+  <label>Target date (optional)</label><input name="target_date" type="date">
+  <label>Measure progress by</label>
+  <select name="metric"><option value="net_worth">My total net worth</option><option value="accounts">Balance of specific accounts</option></select>
+  <div id="goalAccs" class="hidden"><label>Accounts</label><div id="goalAccList" class="small"></div></div>
+  <div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">Save</button></div>
+</form></dialog>
+
+<dialog id="manualDlg"><form method="dialog" id="manualForm">
+  <h2>Manual account</h2>
+  <label>Institution</label><input name="institution" placeholder="e.g. Webull" required>
+  <label>Account name</label><input name="name" placeholder="e.g. Webull Brokerage" required>
+  <label>Type</label><select name="type"><option value="investment">Investment</option><option value="depository">Cash (checking/savings/HSA)</option>
+    <option value="credit">Credit card</option><option value="loan">Loan</option></select>
+  <label>Current balance ($)</label><input name="balance" type="number" step="0.01" required>
+  <div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">Add</button></div>
+</form></dialog>
+
+<script src="/static/charts.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+fastapi>=0.110
+uvicorn>=0.29
+python-multipart>=0.0.9
+plaid-python>=30
+anthropic>=0.40
+pypdf>=4.0

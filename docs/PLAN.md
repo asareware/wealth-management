@@ -1,95 +1,95 @@
 # Wealth Portal Plan: Local to Azure
 
-As of 2026-11-12. Living copy: https://claude.ai/artifact/6wboGKGcbae4LUT6zStsoJ
+Living copy (shared doc): https://claude.ai/artifact/6wboGKGcbae4LUT6zStsoJ
+This file is the source of truth for progress. It is updated as each step lands.
 
 ## Goal
 
-One private web page, reached through a URL and opened with your Azure (Microsoft Entra ID) login, that shows all your money in one place. It covers every connected account, net worth, spending and goals, plus an AI assistant that answers plain questions such as "How much did I spend today?" by querying your data.
+One private web page, reached through a URL and opened with your Microsoft Entra ID login, that shows all your money in one place: every connected account, net worth, spending, goals, statements, and an AI assistant that answers plain questions such as "How much did I spend today?" by querying your data.
 
-- **Who it is for:** you only, for now. It may open to the public later, which would add the work in Phase 5.
-- **Where it runs:** first on your own computer for testing, then on Azure App Service.
-- **AI:** Claude, reached through Azure Foundry instead of Anthropic directly.
+- **Who it is for:** you only, for now. It may open to the public later (see "Later: if the app goes public").
+- **Where it runs:** Azure App Service, deployed from GitHub. Local runs are for development only.
+- **AI:** Claude, reached through Azure Foundry.
+- **Also:** a learning and portfolio project. Claude writes the application code and the infrastructure code (Bicep) with explanations; you run the Azure and Entra ID setup with a step-by-step walkthrough.
 
-## Where it stands today
+## Progress tracker
 
-The app already works on your own computer. The repo has a Python (FastAPI) server, a SQLite database and a plain HTML/JS dashboard.
+Status: **Done**, **In progress**, **Next**, **Not started**.
 
-| Area | What exists now |
-| --- | --- |
-| Accounts | Plaid connections (Chase, BofA, Amex, Capital One, Wealthfront, Webull), manual accounts, CSV import |
-| Numbers | Net worth over time, money in vs. out by period, spending by category and merchant, goals with pace and projected date |
-| Statements | A monthly statement built from all accounts, plus upload and search of bank PDF statements |
-| AI | Claude answers questions by running read-only SQL against the local database |
-| Security | Listens on your computer only (127.0.0.1); data kept in `~/WealthPortalData`, outside OneDrive; no login |
+| # | Step | Who | Status |
+| --- | --- | --- | --- |
+| 0 | Decisions: Bicep, SQLite in `/home`, GitHub Actions, work tenant | You | Done |
+| 1 | Production config: settings for host, port and data folder; `/healthz` check; startup command; no browser pop-up on the server | Claude (code) | Done |
+| 2 | Security code: AI can't read Plaid tokens; app double-checks the signed-in user; writes need a same-site header (CSRF); Plaid tokens encrypted at rest | Claude (code) | Next |
+| 3 | Azure Foundry option in `app/ai.py` | Claude (code) | Not started |
+| 4 | Automated tests + a CI workflow that runs them on every push and pull request | Claude (code) | Not started |
+| 5 | Bicep templates: App Service plan, web app, Key Vault, managed identity, logging, Entra ID sign-in settings | Claude writes, you review | Not started |
+| 6 | Make the GitHub repo private | You | Not started |
+| 7 | Entra ID app registration for sign-in, limited to your account | You, guided | Not started |
+| 8 | Deploy the Bicep templates to a resource group; put secrets in Key Vault | You, guided | Not started |
+| 9 | Passwordless GitHub-to-Azure deploy (OIDC) + deploy workflow | Claude writes the workflow; you create the identity | Not started |
+| 10 | Plaid production setup (redirect URL), then connect your banks | You, guided | Not started |
+| 11 | Foundry resource + Claude deployment; turn on Ask AI | You, guided | Not started |
+| 12 | Go-live checks: other accounts refused, numbers match your banks, first backup taken | Both | Not started |
 
-A test with demo data showed the core numbers work. One gap was found: the AI's SQL tool can read the stored Plaid tokens (fixed in Phase 2).
+## Decisions
 
-## Phase 1: Test locally
+| Date | Decision | Why |
+| --- | --- | --- |
+| 2026-11-12 | Infrastructure as code with Bicep from the start | Repeatable, reviewable, portfolio-ready |
+| 2026-11-12 | SQLite in App Service `/home` storage for the personal phase | No extra cost, almost no code change; fine for one user on one instance |
+| 2026-11-12 | Deploy with GitHub Actions on push to `main` | Automatic, auditable deploys; passwordless sign-in to Azure (OIDC) |
+| 2026-11-12 | Sign-in through your existing Entra ID work tenant | App Service Authentication handles login before any request reaches the app |
+| 2026-11-12 | GitHub is the only home for the code; keys and data never go in the repo | `.env` and data folders are git-ignored; secrets live in Key Vault in production |
 
-Test everything at http://127.0.0.1:8765 on your own computer before anything goes online. No code changes are needed for this phase.
+## Target architecture
 
-- [ ] Install Python 3.10+, create a virtual environment, and run `pip install -r requirements.txt`
-- [ ] Copy `.env.example` to `.env` and run `python run.py`
-- [ ] Load demo data and check every page: Overview, Transactions, Statements, Goals, Accounts, Ask AI
-- [ ] Create a Plaid account (free Trial plan, up to 10 connections) and add the client ID and production secret to `.env`
-- [ ] Connect each bank and card, then remove the demo data
-- [ ] Check the numbers against your bank sites: balances, a month of spending, card payments counted as transfers
-- [ ] Add an Anthropic API key and try questions such as "How much did I spend today?"
-- [ ] Note anything miscategorized and add category rules
+```
+You, in a browser ──► Entra ID sign-in ──► Wealth Portal app (FastAPI on App Service, Linux, B1)
+  (HTTPS only)        (App Service              │   system-assigned managed identity
+                       Authentication)          │
+                     ┌──────────────┬───────────┼──────────────┬────────────────┐
+                     ▼              ▼           ▼              ▼                ▼
+              SQLite in        Key Vault      Plaid       Azure Foundry    App Insights
+              /home/data      (Plaid keys,   (banks)     (Claude for      (logs, errors)
+              (+ statements)   token key,                  Ask AI)
+                               Foundry key)
 
-**Done when:** real balances and transactions match your banks, and the AI answers correctly.
+GitHub (main) ──► GitHub Actions: test, then deploy (OIDC, no stored password) ──► App Service
+```
 
-## Phase 2: Security before hosting
+## Step details
 
-Today the app is safe only because nothing outside your computer can reach it. Once it is on a URL, these protections have to be in place first.
+### Step 1: Production config (Done)
+
+The same code now runs locally and on App Service; the difference is only in settings.
+
+| Setting | Local default | On App Service (detected automatically) |
+| --- | --- | --- |
+| Host | `127.0.0.1` (your computer only) | `0.0.0.0` (App Service's front end forwards traffic in) |
+| Port | `8765` | `8000` (or `PORT` / `WEBSITES_PORT` if set) |
+| Data folder | `~/WealthPortalData` | `/home/data` (the only storage that survives restarts) |
+| Browser pop-up | Opens a tab | Off |
+| Log level | Warnings | Info (visible in App Service log stream) |
+
+- App Service is detected by the `WEBSITE_SITE_NAME` variable, which App Service sets on every web app.
+- `/healthz` answers `{"ok": true}` when the app and database are up. App Service's health check will call it.
+- Startup command on App Service: `python run.py` (one process, which the SQLite database and the background bank sync need).
+
+### Step 2: Security code (Next)
 
 | Change | Why | Breaks anything? |
 | --- | --- | --- |
-| Microsoft Entra ID sign-in, limited to your account | The app has no login; without this, anyone with the URL sees your money | No; it sits in front of the app |
 | Block the AI from reading `access_token` and `cursor` | A query like `SELECT * FROM institutions` would send Plaid tokens to the AI service | No; no money question needs those columns |
-| Move keys out of `.env` | Plaid and AI keys belong in App Service settings or Key Vault | No; the app reads them the same way |
-| Encrypt Plaid tokens in the database | A copied database file would otherwise expose working bank tokens | No; done inside the sync code |
+| App checks the signed-in user from App Service Authentication against an allow-list | A second lock: even if sign-in were misconfigured, the app refuses anyone else | No; local runs skip it |
+| Write requests must carry a header only the app's own pages send | Stops another website from submitting actions using your signed-in session (CSRF) | No; the dashboard sends it |
+| Encrypt Plaid tokens in the database | A copied database file would otherwise expose working bank tokens | No; existing tokens are encrypted on first start |
 
-The token block lives in the app's own code, before any result reaches a model, so it protects you the same way with Anthropic or Azure Foundry.
+### Steps 3 to 12
 
-## Phase 3: Host on Azure App Service
+Each step gets its own section here, with the exact commands or portal clicks, when it starts.
 
-The app runs as one Python web app on App Service, with Entra ID sign-in in front of it and its data in App Service's persistent storage.
-
-```
-You, in a browser ──► Entra ID sign-in ──► Wealth Portal app (FastAPI on App Service)
-                                                   │
-                     ┌──────────────┬──────────────┼──────────────┐
-                     ▼              ▼              ▼              ▼
-              SQLite in /home   Key Vault        Plaid       Azure Foundry
-                               (Plaid, AI keys)  (banks)     (Claude for Ask AI)
-```
-
-| Setting | Today (local) | On App Service |
-| --- | --- | --- |
-| Address and port | 127.0.0.1:8765 | All addresses, on the port App Service provides |
-| Database | `~/WealthPortalData/wealth.db` | SQLite under `/home`, single instance |
-| Statements folder | `~/WealthPortalData/statements` | Under `/home`, or Azure Blob Storage |
-| Bank sync every 6 hours | Runs while the app is open | Needs "Always On" (Basic plan or higher) |
-| Secrets | `.env` file | App Service settings or Key Vault references |
-| Plaid redirect URL | Not needed | Your HTTPS address, registered in the Plaid dashboard |
-| Browser auto-open in `run.py` | Opens a tab | Ignored on a server; harmless |
-
-**Done when:** the URL asks for your Microsoft login, refuses any other account, and shows the same numbers as the local test.
-
-## Phase 4: Switch the AI to Azure Foundry
-
-This is a small change in one file, `app/ai.py`. Claude is available on Microsoft Foundry, and the Anthropic Python SDK the app already uses has a Foundry client (`AnthropicFoundry`).
-
-1. Deploy a Claude model in your Foundry resource and note the resource name and deployment name.
-2. Swap the client in `app/ai.py` from `Anthropic` to `AnthropicFoundry`.
-3. Set the AI model setting to your Foundry deployment name.
-4. Store the Foundry key in App Service settings or Key Vault. Signing in with an Azure identity instead of a key still needs to be confirmed.
-5. Ask the same test questions as Phase 1 and compare the answers.
-
-The tool-use loop and the read-only SQL tool stay as they are. Your financial data still goes to the model to answer questions, now inside Azure.
-
-## Phase 5 (later): If the app goes public
+## Later: if the app goes public
 
 Opening the app to other people turns a personal tool into a service that holds strangers' bank data, so it needs a separate design pass.
 
@@ -97,12 +97,17 @@ Opening the app to other people turns a personal tool into a service that holds 
 - **Per-user data:** every account, transaction, goal and statement tied to a user, and every query (including the AI's) limited to that user.
 - **Sign-in:** open Entra ID to outside accounts (for example, Entra External ID).
 - **Plaid:** move from the Trial plan to a paid plan, and complete Plaid's production review.
-- **Security review:** a full review, plus logging and monitoring, before anyone else's data goes in.
+- **Security review:** a full review, plus monitoring and alerting, before anyone else's data goes in.
 
 ## Open questions
 
-- [ ] Which App Service plan? Always On, needed for the 6-hour bank sync, starts at the Basic tier.
-- [ ] Keep SQLite on App Service for the personal phase, or move to Azure SQL or Postgres from the start?
-- [ ] Foundry: API key, or an Azure identity (managed identity)?
-- [ ] Store uploaded PDF statements under `/home` or in Azure Blob Storage?
-- [ ] Keep the app running on your computer as a backup once it is hosted?
+- [ ] Azure region for the resources (pick one close to you, for example East US 2).
+- [ ] Store uploaded PDF statements under `/home/data` (default) or move them to Azure Blob Storage later?
+- [ ] Foundry: API key in Key Vault (default), or the web app's managed identity?
+
+## Change log
+
+| Date | What changed |
+| --- | --- |
+| 2026-11-12 | Plan added to the repo |
+| 2026-11-12 | Production plan, tracker and decisions added; Step 1 (production config) done |

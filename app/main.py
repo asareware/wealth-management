@@ -33,6 +33,14 @@ def _startup():
         threading.Thread(target=loop, daemon=True).start()
 
 
+@app.get("/healthz")
+def healthz():
+    """Used by App Service's health check: is the app up and can it reach its database?"""
+    with session() as conn:
+        conn.execute("SELECT 1").fetchone()
+    return {"ok": True}
+
+
 @app.get("/")
 def index():
     return FileResponse(STATIC / "index.html")

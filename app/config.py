@@ -18,8 +18,13 @@ def _load_env(path: Path) -> None:
 
 _load_env(ROOT / ".env")
 
+# App Service sets WEBSITE_SITE_NAME on every web app, so its presence means "running in Azure".
+ON_AZURE = bool(os.getenv("WEBSITE_SITE_NAME"))
+
 # Where your database + uploaded statements live. Keep this OUT of OneDrive/iCloud/Dropbox.
-DATA_DIR = Path(os.getenv("WEALTH_DATA_DIR", "~/WealthPortalData")).expanduser()
+# On App Service only /home survives restarts and redeploys, so the default moves there.
+_DEFAULT_DATA_DIR = "/home/data" if ON_AZURE else "~/WealthPortalData"
+DATA_DIR = Path(os.getenv("WEALTH_DATA_DIR", _DEFAULT_DATA_DIR)).expanduser()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 STATEMENTS_DIR = DATA_DIR / "statements"
 STATEMENTS_DIR.mkdir(exist_ok=True)
@@ -34,5 +39,7 @@ PLAID_REDIRECT_URI = os.getenv("PLAID_REDIRECT_URI", "")  # optional; not needed
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 AI_MODEL = os.getenv("AI_MODEL", "claude-sonnet-5-5")
 
-HOST = os.getenv("HOST", "127.0.0.1")  # keep it on your machine only
-PORT = int(os.getenv("PORT", "8765"))
+# Locally: listen on 127.0.0.1 so only your computer can reach the portal.
+# On App Service: listen on 0.0.0.0; App Service's front end (with Entra ID sign-in) is the only way in.
+HOST = os.getenv("HOST", "0.0.0.0" if ON_AZURE else "127.0.0.1")
+PORT = int(os.getenv("PORT") or os.getenv("WEBSITES_PORT") or ("8000" if ON_AZURE else "8765"))

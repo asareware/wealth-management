@@ -8,20 +8,34 @@ import threading
 import time
 from pathlib import Path
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import ai, config, demo, db, files, metrics, plaid_sync
+from . import ai, config, crypto, demo, db, files, metrics, plaid_sync, security
 from .db import rows, session
 
 app = FastAPI(title="Wealth Portal")
 STATIC = config.ROOT / "static"
 
 
+@app.middleware("http")
+async def _security_checks(request: Request, call_next):
+    """Sign-in allow-list and CSRF check on every request (see app/security.py)."""
+    blocked = security.check(request)
+    return blocked or await call_next(request)
+
+
 @app.on_event("startup")
 def _startup():
     db.init()
+    try:
+        with session() as conn:
+            n = crypto.encrypt_plaintext_tokens(conn)
+        if n:
+            print(f"Encrypted {n} stored Plaid token(s).")
+    except crypto.MissingKeyError as e:
+        print("WARNING:", e)
     if plaid_sync.configured():
         def loop():
             while True:
@@ -52,13 +66,15 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 # ---------- status / overview ----------
 
 @app.get("/api/status")
-def status():
+def status(request: Request):
+    user = getattr(request.state, "user", None)
     with session() as conn:
         n_acc = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
         demo_on = conn.execute("SELECT COUNT(*) FROM institutions WHERE is_demo=1").fetchone()[0] > 0
     return {"plaid_configured": plaid_sync.configured(), "plaid_env": config.PLAID_ENV,
             "ai_configured": bool(config.ANTHROPIC_API_KEY), "ai_model": config.AI_MODEL,
-            "accounts": n_acc, "demo": demo_on, "today": dt.date.today().isoformat()}
+            "accounts": n_acc, "demo": demo_on, "today": dt.date.today().isoformat(),
+            "hosted": config.ON_AZURE, "user": user["name"] if user else None}
 
 
 @app.get("/api/overview")

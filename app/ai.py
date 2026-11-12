@@ -2,6 +2,7 @@
 import datetime as dt
 import json
 import re
+import sqlite3
 
 from . import config, metrics
 from .db import connect, rows
@@ -56,6 +57,18 @@ TOOLS = [
     },
 ]
 
+# Columns the AI must never see. SQLite asks _authorizer about every column a query reads;
+# answering SQLITE_IGNORE makes that column come back as NULL, so even "SELECT *" can't leak it.
+# (A blocklist of words in the SQL text can't do this: "SELECT *" never names the column.)
+SECRET_COLUMNS = {("institutions", "access_token"), ("institutions", "cursor")}
+
+
+def _authorizer(action, arg1, arg2, _db_name, _source):
+    if action == sqlite3.SQLITE_READ and ((arg1 or "").lower(), (arg2 or "").lower()) in SECRET_COLUMNS:
+        return sqlite3.SQLITE_IGNORE
+    return sqlite3.SQLITE_OK
+
+
 FORBIDDEN = re.compile(r"\b(insert|update|delete|drop|alter|create|attach|detach|pragma|replace|vacuum)\b", re.I)
 
 
@@ -64,6 +77,7 @@ def _run_sql(sql: str) -> dict:
     if ";" in sql or FORBIDDEN.search(sql) or not re.match(r"^\s*(select|with)\b", sql, re.I):
         return {"error": "Only a single SELECT query is allowed."}
     conn = connect(readonly=True)  # opened read-only at the SQLite level too
+    conn.set_authorizer(_authorizer)  # and secret columns read as NULL
     try:
         cur = conn.execute(sql)
         data = [dict(r) for r in cur.fetchmany(200)]

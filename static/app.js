@@ -6,8 +6,15 @@ const fmtDate = Charts.fmtDate;
 
 async function api(path, opts = {}) {
   const o = { ...opts };
-  if (o.body && !(o.body instanceof FormData)) { o.headers = { "Content-Type": "application/json" }; o.body = JSON.stringify(o.body); }
+  // X-Wealth-Portal: the CSRF check (other sites can't add this header; see app/security.py).
+  // X-Requested-With: tells App Service sign-in to answer 401 instead of redirecting a background request.
+  o.headers = { "X-Wealth-Portal": "1", "X-Requested-With": "XMLHttpRequest", ...(o.headers || {}) };
+  if (o.body && !(o.body instanceof FormData)) { o.headers["Content-Type"] = "application/json"; o.body = JSON.stringify(o.body); }
   const r = await fetch(path, o);
+  if (r.status === 401) { // sign-in expired: go to App Service's Entra ID sign-in, then come back here
+    location.href = "/.auth/login/aad?post_login_redirect_uri=" + encodeURIComponent(location.pathname);
+    return new Promise(() => {});
+  }
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.detail || r.statusText);
   return data;
@@ -28,6 +35,9 @@ document.addEventListener("click", e => { const g = e.target.closest("[data-goto
 
 async function refreshStatus() {
   STATUS = await api("/api/status");
+  $("#brandNote").innerHTML = STATUS.user
+    ? `Signed in as ${esc(STATUS.user)} · <a href="/.auth/logout">Sign out</a>`
+    : STATUS.hosted ? "Private" : "Private · runs on this computer";
   $("#demoBanner").classList.toggle("hidden", !STATUS.demo);
   ACCOUNTS = await api("/api/accounts");
   const last = ACCOUNTS.map(a => a.last_synced).filter(Boolean).sort().at(-1);

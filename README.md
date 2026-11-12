@@ -119,7 +119,11 @@ app/metrics.py      net worth, cash flow, goals, statements
 app/ai.py           AI assistant (tool use over read-only SQL)
 app/files.py        PDF statement search + CSV import
 app/categorize.py   income / spending / transfer rules
+app/crypto.py       encrypts Plaid tokens in the database
+app/security.py     sign-in allow-list + CSRF check (used on Azure)
 app/demo.py         fake demo data
 static/             the dashboard (HTML/CSS/JS, no build step)
+tests/              automated tests (pip install -r requirements-dev.txt, then python -m pytest)
+docs/PLAN.md        production plan and progress tracker
 ~/WealthPortalData/ your database + uploaded statements (created on first run, outside OneDrive)
 ```

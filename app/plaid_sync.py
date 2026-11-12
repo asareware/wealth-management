@@ -17,7 +17,7 @@ from plaid.model.link_token_transactions import LinkTokenTransactions
 from plaid.model.products import Products
 from plaid.model.transactions_sync_request import TransactionsSyncRequest
 
-from . import config
+from . import config, crypto
 from .categorize import apply_rules, classify
 from .db import session
 
@@ -45,7 +45,7 @@ def create_link_token(mode: str = "banking", update_institution_id: str | None =
         with session() as conn:
             row = conn.execute("SELECT access_token FROM institutions WHERE id=?",
                                (update_institution_id,)).fetchone()
-        kwargs["access_token"] = row["access_token"]
+        kwargs["access_token"] = crypto.decrypt(row["access_token"])
     elif mode == "investments":
         kwargs["products"] = [Products("investments")]
     else:
@@ -59,6 +59,7 @@ def create_link_token(mode: str = "banking", update_institution_id: str | None =
 
 
 def exchange_public_token(public_token: str) -> str:
+    crypto.ensure_key()  # check first: once exchanged, the token must be stored encrypted
     client = _client()
     resp = client.item_public_token_exchange(ItemPublicTokenExchangeRequest(public_token=public_token))
     access_token, item_id = resp["access_token"], resp["item_id"]
@@ -76,7 +77,7 @@ def exchange_public_token(public_token: str) -> str:
     with session() as conn:
         conn.execute(
             "INSERT OR REPLACE INTO institutions (id, name, provider, access_token, products) "
-            "VALUES (?,?,?,?,?)", (item_id, name, "plaid", access_token, ",".join(products)))
+            "VALUES (?,?,?,?,?)", (item_id, name, "plaid", crypto.encrypt(access_token), ",".join(products)))
     sync_institution(item_id)
     return item_id
 
@@ -86,7 +87,7 @@ def remove_institution(inst_id: str) -> None:
         row = conn.execute("SELECT provider, access_token FROM institutions WHERE id=?", (inst_id,)).fetchone()
         if row and row["provider"] == "plaid" and row["access_token"] and configured():
             try:
-                _client().item_remove(ItemRemoveRequest(access_token=row["access_token"]))
+                _client().item_remove(ItemRemoveRequest(access_token=crypto.decrypt(row["access_token"])))
             except plaid.ApiException:
                 pass
         conn.execute("DELETE FROM institutions WHERE id=?", (inst_id,))
@@ -136,7 +137,7 @@ def sync_institution(inst_id: str) -> dict:
     client = _client()
     with session() as conn:
         inst = conn.execute("SELECT * FROM institutions WHERE id=?", (inst_id,)).fetchone()
-        token, cursor = inst["access_token"], inst["cursor"]
+        token, cursor = crypto.decrypt(inst["access_token"]), inst["cursor"]
         products = (inst["products"] or "").split(",")
     added = modified = removed = 0
     try:

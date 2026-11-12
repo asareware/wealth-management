@@ -20,8 +20,8 @@ Status: **Done**, **In progress**, **Next**, **Not started**.
 | --- | --- | --- | --- |
 | 0 | Decisions: Bicep, SQLite in `/home`, GitHub Actions, work tenant | You | Done |
 | 1 | Production config: settings for host, port and data folder; `/healthz` check; startup command; no browser pop-up on the server | Claude (code) | Done |
-| 2 | Security code: AI can't read Plaid tokens; app double-checks the signed-in user; writes need a same-site header (CSRF); Plaid tokens encrypted at rest | Claude (code) | Next |
-| 3 | Azure Foundry option in `app/ai.py` | Claude (code) | Not started |
+| 2 | Security code: AI can't read Plaid tokens; app double-checks the signed-in user; writes need a same-site header (CSRF); Plaid tokens encrypted at rest | Claude (code) | Done |
+| 3 | Azure Foundry option in `app/ai.py` | Claude (code) | Next |
 | 4 | Automated tests + a CI workflow that runs them on every push and pull request | Claude (code) | Not started |
 | 5 | Bicep templates: App Service plan, web app, Key Vault, managed identity, logging, Entra ID sign-in settings | Claude writes, you review | Not started |
 | 6 | Make the GitHub repo private | You | Not started |
@@ -76,14 +76,28 @@ The same code now runs locally and on App Service; the difference is only in set
 - `/healthz` answers `{"ok": true}` when the app and database are up. App Service's health check will call it.
 - Startup command on App Service: `python run.py` (one process, which the SQLite database and the background bank sync need).
 
-### Step 2: Security code (Next)
+### Step 2: Security code (Done)
 
-| Change | Why | Breaks anything? |
+| Change | How it works | Where |
 | --- | --- | --- |
-| Block the AI from reading `access_token` and `cursor` | A query like `SELECT * FROM institutions` would send Plaid tokens to the AI service | No; no money question needs those columns |
-| App checks the signed-in user from App Service Authentication against an allow-list | A second lock: even if sign-in were misconfigured, the app refuses anyone else | No; local runs skip it |
-| Write requests must carry a header only the app's own pages send | Stops another website from submitting actions using your signed-in session (CSRF) | No; the dashboard sends it |
-| Encrypt Plaid tokens in the database | A copied database file would otherwise expose working bank tokens | No; existing tokens are encrypted on first start |
+| The AI can't read `access_token` or `cursor` | A SQLite *authorizer* is asked about every column a query reads and answers "ignore" for these two, so they come back empty even with `SELECT *`, subqueries or CTEs | `app/ai.py` |
+| The app double-checks the signed-in user | App Service sign-in adds headers naming the user (`X-MS-CLIENT-PRINCIPAL-ID` / `-NAME`), and App Service won't let a browser set them itself. The app refuses requests with no user (401) and users not in `ALLOWED_USERS` (403); an empty list lets nobody in | `app/security.py` |
+| CSRF protection | Every write to `/api` must carry `X-Wealth-Portal: 1`. Browsers won't let another site add a custom header, so only the dashboard can make changes | `app/security.py`, `static/app.js` |
+| Plaid tokens encrypted at rest | Fernet encryption (`cryptography` package) with `TOKEN_ENCRYPTION_KEY`, stored as `enc:v1:...`; older plaintext tokens are encrypted at startup; on Azure the app refuses to store a token without the key | `app/crypto.py`, `app/plaid_sync.py` |
+
+Also:
+- The sidebar shows "Signed in as ... · Sign out" when hosted.
+- If your sign-in expires, the dashboard sends you back through Entra ID sign-in.
+- 16 automated tests cover all four changes (`tests/test_security.py`; run with `python -m pytest`).
+
+What you'll set later (Step 8), as App Service settings backed by Key Vault:
+
+| Setting | Value |
+| --- | --- |
+| `TOKEN_ENCRYPTION_KEY` | A new Fernet key (command in `.env.example`). Keep a copy somewhere safe: losing it means reconnecting every bank |
+| `ALLOWED_USERS` | Your Entra ID object ID (Entra admin center → Users → you → Object ID) |
+
+Known limit: the sign-in check trusts App Service's headers, so App Service Authentication must stay on. The Bicep template (Step 5) turns it on and requires it. A possible later hardening is to also verify the signed ID token the app receives.
 
 ### Steps 3 to 12
 
@@ -111,3 +125,4 @@ Opening the app to other people turns a personal tool into a service that holds 
 | --- | --- |
 | 2026-11-12 | Plan added to the repo |
 | 2026-11-12 | Production plan, tracker and decisions added; Step 1 (production config) done |
+| 2026-11-12 | Step 2 (security code) done: AI token block, sign-in allow-list, CSRF check, token encryption, 16 tests |

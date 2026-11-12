@@ -1,0 +1,4 @@
+# Tools for development and CI only; not installed on App Service.
+-r requirements.txt
+pytest>=8
+httpx>=0.27

@@ -39,6 +39,16 @@ PLAID_REDIRECT_URI = os.getenv("PLAID_REDIRECT_URI", "")  # optional; not needed
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 AI_MODEL = os.getenv("AI_MODEL", "claude-sonnet-5-5")
 
+# Encrypts Plaid access tokens in the database (see app/crypto.py). Required on Azure (from Key Vault);
+# on your own computer a key file is created in DATA_DIR if this is empty.
+TOKEN_ENCRYPTION_KEY = os.getenv("TOKEN_ENCRYPTION_KEY", "")
+
+# Sign-in check (see app/security.py). On App Service, Entra ID sign-in happens before a request
+# reaches the app; the app then refuses anyone not listed here, as a second lock.
+# ALLOWED_USERS: comma-separated Entra ID object IDs (preferred: not guessable) and/or sign-in emails.
+REQUIRE_SIGN_IN = os.getenv("REQUIRE_SIGN_IN", "true" if ON_AZURE else "false").lower() == "true"
+ALLOWED_USERS = {u.strip().lower() for u in os.getenv("ALLOWED_USERS", "").split(",") if u.strip()}
+
 # Locally: listen on 127.0.0.1 so only your computer can reach the portal.
 # On App Service: listen on 0.0.0.0; App Service's front end (with Entra ID sign-in) is the only way in.
 HOST = os.getenv("HOST", "0.0.0.0" if ON_AZURE else "127.0.0.1")

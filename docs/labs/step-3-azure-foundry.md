@@ -65,9 +65,12 @@ Do this on your own computer, in VS Code's terminal. This cloud session's networ
    AI_PROVIDER=foundry
    ANTHROPIC_FOUNDRY_RESOURCE=<your resource name, without https:// or .services.ai.azure.com>
    ANTHROPIC_FOUNDRY_API_KEY=<your key>
-   AI_MODEL=claude-sonnet-5-5
+   AI_MODEL=claude-sonnet-5-5          # your deployment name, e.g. claude-opus-5-5
    ```
-3. **Write the script.** Create `labs/foundry_hello.py` with this code. Read the comments as you type.
+   Use the Foundry **resource** name (the part before `.services.ai.azure.com` in its endpoint), not the project name.
+3. **Write the script.** Make a new `labs` folder at the **top of the repo**, next to `app/` (not inside `docs/`), and create `labs/foundry_hello.py` in it with this code. Read the comments as you type.
+   It must be at the top level: `from app import config` only works when Python runs from the repo folder.
+   Save both `.env` and the script (Cmd+S / Ctrl+S) before running: Python reads what's on disk.
    ```python
    """Lab step 3, Part B: say hello to Claude in your own Azure Foundry resource.
 
@@ -123,6 +126,7 @@ Do this on your own computer, in VS Code's terminal. This cloud session's networ
 | 404 | The deployment name in `AI_MODEL` doesn't match the portal, or the resource name is wrong |
 | 429 | Rate limit or quota on the deployment; wait a minute, or raise the quota in the portal |
 | Couldn't reach Foundry | The resource name has a typo, or you included `https://` in it |
+| `No module named 'labs'` | The script isn't in a top-level `labs/` folder, or you ran the command from a folder other than the repo root |
 
 **Checkpoint B:** paste the script's output to Claude (it contains no secrets).
 

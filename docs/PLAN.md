@@ -105,7 +105,7 @@ You do this one hands-on: [docs/labs/step-3-azure-foundry.md](labs/step-3-azure-
 
 | Part | What you do | Checkpoint (tell Claude) |
 | --- | --- | --- |
-| A | Portal: resource group `rg-wealth-portal`, Foundry resource, Claude deployment, budget alert | Resource name, deployment name, region (never the key) |
+| A | Portal: resource group `rg-wealth-portal`, Foundry resource, Claude deployment, budget alert | Done: resource `asarejohn-8560-resource`, deployment `claude-opus-5-5` (GlobalStandard, 40K tokens/min), North Central US |
 | B | Call Claude from a short Python script with `AnthropicFoundry` | The script's output |
 | C | Wire Foundry into the app: provider setting, client factory, fixed tool loop, offline tests | Push your commit; Claude reviews it |
 
@@ -127,7 +127,7 @@ Opening the app to other people turns a personal tool into a service that holds 
 
 ## Open questions
 
-- [ ] Azure region for the resources (pick one close to you, for example East US 2).
+- [ ] Azure region for the App Service resources (Foundry is in North Central US; putting the web app there too keeps AI calls short).
 - [ ] Store uploaded PDF statements under `/home/data` (default) or move them to Azure Blob Storage later?
 - [x] Foundry sign-in: API key in Key Vault first; keyless managed identity as a stretch goal after Step 8 (the SDK supports it through `azure_ad_token_provider`).
 
@@ -139,3 +139,4 @@ Opening the app to other people turns a personal tool into a service that holds 
 | 2026-11-12 | Production plan, tracker and decisions added; Step 1 (production config) done |
 | 2026-11-12 | Step 2 (security code) done: AI token block, sign-in allow-list, CSRF check, token encryption, 16 tests |
 | 2026-11-12 | Step 3 turned into a hands-on lab; lab guide added |
+| 2026-11-15 | Step 3 Checkpoint A done (Foundry resource + Claude Opus 5.5 deployment); lab guide clarifies where the Part B script goes |
